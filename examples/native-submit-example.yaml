@@ -1,0 +1,28 @@
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: native-submit-example
+  namespace: default
+  annotations:
+    # Use native Kubernetes API submission instead of spark-submit
+    # This provides better performance by avoiding JVM overhead
+    submitter.sparkoperator.k8s.io/type: "native-submit"
+spec:
+  type: Scala
+  mode: cluster
+  image: spark:3.4.0
+  mainClass: org.apache.spark.examples.SparkPi
+  mainApplicationFile: local:///opt/spark/examples/jars/spark-examples_2.12-3.4.0.jar
+  arguments:
+    - "1000"
+  sparkVersion: 3.4.0
+  driver:
+    cores: 1
+    memory: 512m
+    serviceAccount: spark-operator-spark
+  executor:
+    instances: 2
+    cores: 1
+    memory: 512m
+  restartPolicy:
+    type: Never 

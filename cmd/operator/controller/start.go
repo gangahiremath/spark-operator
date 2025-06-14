@@ -115,6 +115,12 @@ var (
 	enableHTTP2            bool
 	development            bool
 	zapOptions             = logzap.Options{}
+
+	// Add new flag for submitter type
+	submitterType string
+
+	// Add new flag for native submitter plugin path
+	nativeSubmitPluginPath string
 )
 
 func init() {
@@ -179,6 +185,10 @@ func NewStartCommand() *cobra.Command {
 
 	command.Flags().StringVar(&pprofBindAddress, "pprof-bind-address", "0", "The address the pprof endpoint binds to. "+
 		"If not set, it will be 0 in order to disable the pprof server")
+
+	command.Flags().StringVar(&submitterType, "submitter-type", "spark-submit", "Type of submitter to use for Spark applications (spark-submit, native-submit)")
+
+	command.Flags().StringVar(&nativeSubmitPluginPath, "native-submit-plugin-path", "", "Path to the native submit plugin (if using native-submit submitter type)")
 
 	flagSet := flag.NewFlagSet("controller", flag.ExitOnError)
 	ctrl.RegisterFlags(flagSet)
@@ -262,7 +272,15 @@ func start() {
 		}
 	}
 
-	sparkSubmitter := &sparkapplication.SparkSubmitter{}
+	var sparkSubmitter sparkapplication.SparkApplicationSubmitter
+	switch submitterType {
+	case "native-submit":
+		sparkSubmitter = sparkapplication.NewNativeSubmitter(nativeSubmitPluginPath)
+	case "spark-submit":
+		fallthrough
+	default:
+		sparkSubmitter = &sparkapplication.SparkSubmitter{}
+	}
 
 	// Setup controller for SparkApplication.
 	if err = sparkapplication.NewReconciler(

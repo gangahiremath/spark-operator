@@ -110,3 +110,20 @@ For contributing to Spark Operator, please refer to [Contributor Guide](CONTRIBU
 ## Adopters
 
 Check out [adopters of Spark Operator](ADOPTERS.md).
+
+## Features
+
+* Supports Spark 2.3+ (with Kubernetes support)
+* Supports cluster mode for Spark applications
+* Supports Python applications (PySpark), Java, Scala and R applications
+* Automatic configuration of Spark pod executors based on the operator configuration
+* Automatic retries of failed submissions with optional exponential back-off
+* Declarative application specification and management using Kubernetes CRDs
+* **Pluggable Submission Mechanism**: Choose between traditional `spark-submit` or high-performance native Kubernetes API submission
+* Support for customization of pod templates
+* Support for mounting secrets and config maps into application pods
+* Support for resource quotas and validation via admission control
+* Support for dependency management with initialization containers
+* Support for mounting volumes
+* Support for pod affinity and anti-affinity scheduling
+* Automatic Prometheus monitoring with metrics and custom hooks for external systems

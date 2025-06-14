@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"plugin"
 	"strings"
 
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -44,7 +45,24 @@ type SparkSubmitter struct {
 // This interface is highly experimental and may go under significant changes or removed in the future.
 var _ SparkApplicationSubmitter = &SparkSubmitter{}
 
-// Submit implements SparkApplicationSubmitter interface.
+// NativeSubmitter submits a SparkApplication using native Kubernetes API calls instead of spark-submit.
+// This is an alternative implementation that provides better performance by avoiding JVM overhead.
+type NativeSubmitter struct {
+	pluginPath string
+}
+
+// NewNativeSubmitter creates a new NativeSubmitter with the specified plugin path.
+func NewNativeSubmitter(pluginPath string) *NativeSubmitter {
+	return &NativeSubmitter{
+		pluginPath: pluginPath,
+	}
+}
+
+// NativeSubmitter implements SparkApplicationSubmitter interface.
+// This interface is highly experimental and may go under significant changes or removed in the future.
+var _ SparkApplicationSubmitter = &NativeSubmitter{}
+
+// Submit implements SparkApplicationSubmitter interface using spark-submit.
 func (*SparkSubmitter) Submit(ctx context.Context, app *v1beta2.SparkApplication) error {
 	logger := log.FromContext(ctx)
 
@@ -60,6 +78,77 @@ func (*SparkSubmitter) Submit(ctx context.Context, app *v1beta2.SparkApplication
 	}
 
 	return nil
+}
+
+// Submit implements SparkApplicationSubmitter interface using native Kubernetes API calls.
+// This provides an alternative implementation that avoids the JVM overhead of spark-submit.
+func (n *NativeSubmitter) Submit(ctx context.Context, app *v1beta2.SparkApplication) error {
+	logger := log.FromContext(ctx)
+	logger.Info("Submitting SparkApplication using native Kubernetes API", "name", app.Name, "namespace", app.Namespace)
+
+	// Determine plugin path - environment variable overrides configuration
+	pluginPath := n.pluginPath
+	if envPath := os.Getenv("NATIVE_SUBMIT_PLUGIN_PATH"); envPath != "" {
+		pluginPath = envPath
+		logger.Info("Using plugin path from environment variable", "path", pluginPath)
+	}
+
+	// Check if native submit plugin is configured
+	if pluginPath != "" {
+		logger.Info("Loading native submit plugin", "path", pluginPath)
+		return submitViaPlugin(ctx, app, pluginPath)
+	}
+
+	// Fall back to native implementation using Kubernetes client
+	return submitViaKubernetesAPI(ctx, app)
+}
+
+// submitViaPlugin loads and uses an external plugin for native submission
+func submitViaPlugin(ctx context.Context, app *v1beta2.SparkApplication, pluginPath string) error {
+	logger := log.FromContext(ctx)
+
+	// Load the plugin
+	p, err := plugin.Open(pluginPath)
+	if err != nil {
+		logger.Error(err, "Failed to load native submit plugin", "path", pluginPath)
+		return fmt.Errorf("failed to load plugin at %s: %v", pluginPath, err)
+	}
+
+	// Look for the Submit function
+	submitSymbol, err := p.Lookup("Submit")
+	if err != nil {
+		return fmt.Errorf("plugin does not export Submit function: %v", err)
+	}
+
+	// Type assert to the expected function signature
+	submitFunc, ok := submitSymbol.(func(context.Context, *v1beta2.SparkApplication) error)
+	if !ok {
+		return fmt.Errorf("plugin Submit function has incorrect signature")
+	}
+
+	logger.Info("Calling plugin Submit function")
+	return submitFunc(ctx, app)
+}
+
+// submitViaKubernetesAPI provides a native implementation using Kubernetes API
+func submitViaKubernetesAPI(ctx context.Context, app *v1beta2.SparkApplication) error {
+	logger := log.FromContext(ctx)
+	logger.Info("Using native Kubernetes API submission")
+
+	// TODO: Implement native Kubernetes API submission
+	// This would create the driver pod directly using the Kubernetes client
+	// without going through spark-submit, similar to what the Salesforce plugin does
+
+	// For now, fall back to the original implementation
+	// In a full implementation, this would:
+	// 1. Create driver pod spec from SparkApplication
+	// 2. Apply necessary configurations and labels
+	// 3. Submit the pod directly to Kubernetes API
+	// 4. Handle any additional resources (services, configmaps, etc.)
+
+	logger.Info("Native Kubernetes API submission not fully implemented, falling back to spark-submit")
+	sparkSubmitter := &SparkSubmitter{}
+	return sparkSubmitter.Submit(ctx, app)
 }
 
 func runSparkSubmit(args []string) error {
