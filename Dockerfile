@@ -33,7 +33,7 @@ ARG TARGETARCH
 
 RUN --mount=type=cache,target=/go/pkg/mod/ \
     --mount=type=cache,target="/root/.cache/go-build" \
-    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} GO111MODULE=on make build-operator
+    CGO_ENABLED=1 GOOS=linux GOARCH=${TARGETARCH} GO111MODULE=on make build-operator
 
 FROM ${SPARK_IMAGE}
 
@@ -54,6 +54,8 @@ RUN mkdir -p /etc/k8s-webhook-server/serving-certs /home/spark && \
 USER ${SPARK_UID}:${SPARK_GID}
 
 COPY --from=builder /workspace/bin/spark-operator /usr/bin/spark-operator
+
+COPY plugins/native-submit-plugin.so /usr/bin/plugins/native-submit-plugin.so
 
 COPY entrypoint.sh /usr/bin/
 

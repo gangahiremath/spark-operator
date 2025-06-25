@@ -118,16 +118,19 @@ func submitViaPlugin(ctx context.Context, app *v1beta2.SparkApplication, pluginP
 	submitSymbol, err := p.Lookup("Submit")
 	if err != nil {
 		return fmt.Errorf("plugin does not export Submit function: %v", err)
+	} else {
+		logger.Info("In submitViaPlugin - Submit function found")
 	}
 
 	// Type assert to the expected function signature
-	submitFunc, ok := submitSymbol.(func(context.Context, *v1beta2.SparkApplication) error)
-	if !ok {
-		return fmt.Errorf("plugin Submit function has incorrect signature")
-	}
+	submitFunc := submitSymbol.(func(context.Context, *v1beta2.SparkApplication) (bool, error))
 
 	logger.Info("Calling plugin Submit function")
-	return submitFunc(ctx, app)
+	_, err = submitFunc(ctx, app)
+	if err != nil {
+		return fmt.Errorf("Submit function returned error: %v", err)
+	}
+	return nil
 }
 
 // submitViaKubernetesAPI provides a native implementation using Kubernetes API
